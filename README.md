@@ -1,108 +1,44 @@
-# stm32-bootloader
-UART bootloader for STM32 microcontroller.
+# STM32 Custom UART Bootloader (IAP)
 
-### Table of contents
-- [Introduction](#introduction)
-- [How it works](#how-it-works)
-  - [Overall](#overall)
-  - [Memory map](#memory-map)
-  - [Code](#code)
-- [How to use it](#how-to-use-it)
-  - [Embedded](#embedded)
-  - [PC](#pc)
-  - [Porting](#porting)
-- [References](#references)
+Bu proje, STM32F4 serisi mikrodenetleyiciler için geliştirdiğim, harici bir programlayıcıya (ST-Link/J-Link) ihtiyaç duymadan, seri port (UART) üzerinden yazılım güncelleme (In-Application Programming - IAP) imkanı sağlayan bir Bootloader yazılımıdır.
 
-### Introduction
-A bootloader for STM32F100 (STM32VLDISCOVERY board) [[1]](#references) with UART and Xmodem protocol [[2]](#references)[[3]](#references).
-The software is created with Atollic trueSTUDIO and the drivers are generated with CubeMX.
+Gömülü sistemlerin en kritik yetkinliklerinden biri olan "Memory Management" (Bellek Yönetimi) ve "Bare-metal" programlama prensiplerini derinlemesine kavramak amacıyla bu mimariyi tasarladım.
 
-Main features:
-- UART & Xmodem protocol
-- CRC16 checksum
-- Supports 128 and 1024 bytes data length
+## 🎯 Projenin Amacı ve Motivasyonu
+Gömülü yazılım mühendisliğinde, sahada çalışan bir cihazın kapağını açmadan güncellenebilmesi hayati bir gereksinimdir. Bu projede; standart HAL kütüphanelerinin ötesine geçerek, **Linker Script** manipülasyonu, **Flash Memory** sektör yönetimi ve **İşlemci Çekirdeği (ARM Cortex-M4)** kayıtçılarının (Register) doğrudan kontrolü üzerine yoğunlaştım.
 
-### How it works
-#### Overall
-The bootloader was developed for STM32VLDISCOVERY board, the only extra thing needed is an USB-UART module on PA10 (RX) and PA9 (TX) pins.
+Amacım, sadece çalışan bir kod yazmak değil, işlemcinin "Reset" anından itibaren ana uygulamaya (Application) geçiş sürecine kadar olan tüm "Boot" sürecini kontrol altına almaktır.
 
-<img src="https://raw.githubusercontent.com/ferenc-nemeth/stm32-bootloader/master/Design/stm32f100-pinout.png" > <br>
-*Figure 1. Pinout of the system.*
+## ⚙️ Teknik Detaylar ve Mimari
+Proje, mikrodenetleyicinin Flash belleğini iki ana bölüme ayırarak çalışır:
 
-After start-up, the system sends a welcome message through UART and checks if the user button is pressed. If it is pressed, then it stays in booatloader mode, turns on the green (PC9) LED and waits for a new binary file. If the button isn't pressed, then it jumps to the user application.
+1.  **Bootloader Bölümü (Sector 0):** Cihaz enerjilendiğinde ilk çalışan koddur. Belirli bir süre (timeout) veya tetikleyici (buton/komut) bekler. Eğer güncelleme isteği varsa UART hattını dinler.
+2.  **Application Bölümü (Sector 1+):** Kullanıcının asıl kodunun çalıştığı bölgedir.
 
-<img src="https://raw.githubusercontent.com/ferenc-nemeth/stm32-bootloader/master/Design/bootloader.png" > <br>
-*Figure 2. Brief overview of the workflow of the system.*
+### Öne Çıkan Teknik Yetkinlikler
+* **Flash Bellek Yönetimi:** Flash belleğin sektör bazlı silinmesi (Erase) ve 4-byte/word tabanlı yazılması işlemleri, donanım hata bayrakları (Flags) kontrol edilerek güvenli bir şekilde gerçekleştirildi.
+* **Linker Script Düzenleme:** `.ld` dosyasında hafıza haritası (Memory Map) yeniden düzenlenerek, Bootloader ve Application kodlarının çakışmaması sağlandı.
+* **Jump to Application (Dallanma):** Bootloader görevini tamamladığında, `Function Pointer` kullanılarak işlemcinin Program Counter (PC) ve Stack Pointer (MSP) adresleri ana uygulamanın başlangıç adresine yönlendirildi.
+* **Vector Table Relocation:** Kesme vektör tablosunun (Interrupt Vector Table) offset değeri, ana uygulamanın çalışabilmesi için dinamik olarak kaydırıldı (SCB->VTOR).
 
-The Xmodem protocol is clearly explained in the [references](#references).
+## 🛠 Kullanılan Teknolojiler ve Araçlar
+* **Donanım:** STM32F4 Discovery Kit (ARM Cortex-M4)
+* **Yazılım Dili:** Embedded C
+* **IDE:** STM32CubeIDE
+* **Haberleşme:** UART (Universal Asynchronous Receiver-Transmitter)
+* **Test Araçları:** Tera Term / RealTerm (Binary veri transferi için)
 
-#### Memory map
-The bootloader starts from 0x08000000 and the user application starts from 0x08008000.
+## 🚀 Nasıl Çalışır?
+1.  Cihaz başlatıldığında Bootloader devreye girer.
+2.  Kullanıcı butonuna basılıysa veya UART üzerinden belirli bir "Handshake" baytı gelirse **Güncelleme Moduna** geçer.
+3.  Bilgisayardan gönderilen yeni yazılımın `.bin` dosyası paketler halinde alınır.
+4.  Gelen veri, CRC kontrolü yapılarak Flash belleğin ilgili sektörlerine yazılır.
+5.  Yazma işlemi bittiğinde sistem Resetlenir veya doğrudan ana uygulamaya (Jump) sıçranır.
 
-<img src="https://raw.githubusercontent.com/ferenc-nemeth/stm32-bootloader/master/Design/memory_map.png" > <br>
-*Figure 3. The organization of the memory.*
+## 📈 Gelecek Geliştirmeler (To-Do)
+* Veri transferinde AES-128 şifreleme ekleyerek güvenli boot (Secure Boot) altyapısı oluşturmak.
+* Yazılımın bütünlüğünü doğrulamak için gelişmiş bir CRC-32 kontrolü entegre etmek.
+* Haberleşme arayüzüne USB (DFU Class) desteği eklemek.
 
-#### Code
-Every important code is inside the Src and Inc folders. main.c holds the button check, xmodem.c and .h hold the communication portocol, uart.c and .h are a layer between Xmodem and the generated HAL code, flash.c and .h have the writing/erasing/jumping related functions. Everything else is provided by ST.
-The code is fully commented, so it should be easy to understand.
-
-### How to use it
-#### Embedded
-To use the bootloader, just get the softwares mentioned in the [Introduction](#introduction) and flash it. 
-
-I included an example binary file called "blinky_test.bin" in the root folder. It blinks the blue (PC8) LED on the board.
-To make your own binary, you have to modify the memory location in the linker script (STM32F100RB_FLASH.ld):
-```
-FLASH (rx)      : ORIGIN = 0x8008000,
-```
-And the vector table offset in system_stm32f1xx.c
-```
-#define VECT_TAB_OFFSET  0x00008000U
-```
-Last step is you have to generate a \*.bin file:
-```
-arm-atollic-eabi-objcopy -O binary "input.elf" "output.bin"
-```
-
-#### PC
-To update the firmware, you need a terminal software, that supports Xmodem. I recommend PuTTY [[4]](#references) or Tera Term [[5]](#references).
-
-Configure them in the following way:
-- Baud rate: 115200
-- Data bits: 8
-- Parity: none
-- Stop bits: 1
-
-In PuTTY: select *Files Transfer* >> *Xmodem* (or *Xmodem 1K*) >> *Send* and then open the binary file.
-
-<img src="https://raw.githubusercontent.com/ferenc-nemeth/stm32-bootloader/master/Design/terminal-putty.png" > <br>
-*Figure 4. PuTTY.*
-
-In Tera Term: select *File* >> *Transfer* >> *Xmodem* >> *Send* and then open the binary file.
-<img src="https://raw.githubusercontent.com/ferenc-nemeth/stm32-bootloader/master/Design/terminal-teraterm.png" > <br>
-*Figure 5. Tera Term.*
-
-In case everything was fine, then the output should be the same:
-```
-================================
-UART Bootloader
-https://github.com/ferenc-nemeth
-================================
-
-Please send a new binary file with Xmodem protocol to update the firmware.
-CCCCCCC
-Firmware updated!
-Jumping to user application...
-```
-
-#### Porting
-I included the *.ioc file, so the drivers can be regenerated for any ST microntroller (if it has similar memory structure).
-If you have a non-ST microntroller, then the xmodem protocol can be reused, but nothing else.
-
-### References
-[1] [ST - Discovery kit with STM32F100RB MCU](https://www.st.com/en/evaluation-tools/stm32vldiscovery.html)<br>
-[2] [Xmodem protocol with CRC](https://web.mit.edu/6.115/www/amulet/xmodem.htm)<br>
-[3] [Chuck Forsberg - XMODEM/YMODEM PROTOCOL REFERENCE](http://www.blunk-electronic.de/train-z/pdf/xymodem.pdf)<br>
-[4] [PuTTY](https://putty.org/)<br>
-[5] [Tera Term](https://ttssh2.osdn.jp/)<br>
-
+---
+*Bu proje, gömülü sistemlerin düşük seviye (low-level) çalışma mantığını anlamak ve profesyonel firmware güncelleme standartlarını uygulamak için Ömer Faruk Acar tarafından geliştirilmiştir.*
