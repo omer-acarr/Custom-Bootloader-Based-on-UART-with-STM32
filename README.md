@@ -1,44 +1,44 @@
 # STM32 Custom UART Bootloader (IAP)
 
-Bu proje, STM32F4 serisi mikrodenetleyiciler için geliştirdiğim, harici bir programlayıcıya (ST-Link/J-Link) ihtiyaç duymadan, seri port (UART) üzerinden yazılım güncelleme (In-Application Programming - IAP) imkanı sağlayan bir Bootloader yazılımıdır.
+This project is a Bootloader software I developed for STM32F4 series microcontrollers, enabling software updates (In-Application Programming - IAP) via the serial port (UART) without the need for an external programmer (ST-Link/J-Link).
 
-Gömülü sistemlerin en kritik yetkinliklerinden biri olan "Memory Management" (Bellek Yönetimi) ve "Bare-metal" programlama prensiplerini derinlemesine kavramak amacıyla bu mimariyi tasarladım.
+I designed this architecture to gain a deep understanding of “Memory Management” and “Bare-metal” programming principles, which are among the most critical competencies in embedded systems.
 
-## 🎯 Projenin Amacı ve Motivasyonu
-Gömülü yazılım mühendisliğinde, sahada çalışan bir cihazın kapağını açmadan güncellenebilmesi hayati bir gereksinimdir. Bu projede; standart HAL kütüphanelerinin ötesine geçerek, **Linker Script** manipülasyonu, **Flash Memory** sektör yönetimi ve **İşlemci Çekirdeği (ARM Cortex-M4)** kayıtçılarının (Register) doğrudan kontrolü üzerine yoğunlaştım.
+## 🎯 Project Purpose and Motivation
+In embedded software engineering, it is a vital requirement that a device operating in the field can be updated without opening its cover. In this project, I went beyond standard HAL libraries and focused on **Linker Script** manipulation, **Flash Memory** sector management, and direct control of the **Processor Core (ARM Cortex-M4)** registers.
 
-Amacım, sadece çalışan bir kod yazmak değil, işlemcinin "Reset" anından itibaren ana uygulamaya (Application) geçiş sürecine kadar olan tüm "Boot" sürecini kontrol altına almaktır.
+My goal is not only to write working code, but to control the entire “Boot” process from the moment the processor “Resets” until it transitions to the main application.
 
-## ⚙️ Teknik Detaylar ve Mimari
-Proje, mikrodenetleyicinin Flash belleğini iki ana bölüme ayırarak çalışır:
+## ⚙️ Technical Details and Architecture
+The project works by dividing the microcontroller's Flash memory into two main sections:
 
-1.  **Bootloader Bölümü (Sector 0):** Cihaz enerjilendiğinde ilk çalışan koddur. Belirli bir süre (timeout) veya tetikleyici (buton/komut) bekler. Eğer güncelleme isteği varsa UART hattını dinler.
-2.  **Application Bölümü (Sector 1+):** Kullanıcının asıl kodunun çalıştığı bölgedir.
+1.  **Bootloader Section (Sector 0):** This is the first code that runs when the device is powered on. It waits for a certain period of time (timeout) or a trigger (button/command). If there is an update request, it listens to the UART line.
+2.  **Application Section (Sector 1+):** This is where the user's main code runs.
 
-### Öne Çıkan Teknik Yetkinlikler
-* **Flash Bellek Yönetimi:** Flash belleğin sektör bazlı silinmesi (Erase) ve 4-byte/word tabanlı yazılması işlemleri, donanım hata bayrakları (Flags) kontrol edilerek güvenli bir şekilde gerçekleştirildi.
-* **Linker Script Düzenleme:** `.ld` dosyasında hafıza haritası (Memory Map) yeniden düzenlenerek, Bootloader ve Application kodlarının çakışmaması sağlandı.
-* **Jump to Application (Dallanma):** Bootloader görevini tamamladığında, `Function Pointer` kullanılarak işlemcinin Program Counter (PC) ve Stack Pointer (MSP) adresleri ana uygulamanın başlangıç adresine yönlendirildi.
-* **Vector Table Relocation:** Kesme vektör tablosunun (Interrupt Vector Table) offset değeri, ana uygulamanın çalışabilmesi için dinamik olarak kaydırıldı (SCB->VTOR).
+### Key Technical Competencies
+* **Flash Memory Management:** Sector-based erasure and 4-byte/word-based writing of flash memory were performed safely by checking hardware error flags.
+* **Linker Script Editing:** The memory map in the `.ld` file was reorganized to prevent conflicts between the Bootloader and Application code.
+* **Jump to Application (Branching):** When the Bootloader completed its task, the processor's Program Counter (PC) and Stack Pointer (MSP) addresses were directed to the start address of the main application using the `Function Pointer`.
+* **Vector Table Relocation:** The offset value of the interrupt vector table (Interrupt Vector Table) was dynamically shifted (SCB->VTOR) to allow the main application to run.
 
-## 🛠 Kullanılan Teknolojiler ve Araçlar
-* **Donanım:** STM32F4 Discovery Kit (ARM Cortex-M4)
-* **Yazılım Dili:** Embedded C
+## 🛠 Technologies and Tools Used
+* **Hardware:** STM32F4 Discovery Kit (ARM Cortex-M4)
+* **Software Language:** Embedded C
 * **IDE:** STM32CubeIDE
-* **Haberleşme:** UART (Universal Asynchronous Receiver-Transmitter)
-* **Test Araçları:** Tera Term / RealTerm (Binary veri transferi için)
+* **Communication:** UART (Universal Asynchronous Receiver-Transmitter)
+* **Test Tools:** Tera Term / RealTerm (for binary data transfer)
 
-## 🚀 Nasıl Çalışır?
-1.  Cihaz başlatıldığında Bootloader devreye girer.
-2.  Kullanıcı butonuna basılıysa veya UART üzerinden belirli bir "Handshake" baytı gelirse **Güncelleme Moduna** geçer.
-3.  Bilgisayardan gönderilen yeni yazılımın `.bin` dosyası paketler halinde alınır.
-4.  Gelen veri, CRC kontrolü yapılarak Flash belleğin ilgili sektörlerine yazılır.
-5.  Yazma işlemi bittiğinde sistem Resetlenir veya doğrudan ana uygulamaya (Jump) sıçranır.
+## 🚀 How Does It Work?
+1.  When the device starts up, the Bootloader kicks in.
+2.  If the user presses the button or a specific “Handshake” byte arrives via UART, it enters **Update Mode**.
+3.  The new software `.bin` file sent from the computer is received in packets.
+4.  The incoming data is written to the relevant sectors of the Flash memory after CRC checking.
+5.  When the write operation is complete, the system is reset or jumps directly to the main application.
 
-## 📈 Gelecek Geliştirmeler (To-Do)
-* Veri transferinde AES-128 şifreleme ekleyerek güvenli boot (Secure Boot) altyapısı oluşturmak.
-* Yazılımın bütünlüğünü doğrulamak için gelişmiş bir CRC-32 kontrolü entegre etmek.
-* Haberleşme arayüzüne USB (DFU Class) desteği eklemek.
+## 📈 Future Developments (To-Do)
+* Create a secure boot infrastructure by adding AES-128 encryption to data transfer.
+* Integrate an advanced CRC-32 check to verify the integrity of the software.
+* Add USB (DFU Class) support to the communication interface.
 
 ---
-*Bu proje, gömülü sistemlerin düşük seviye (low-level) çalışma mantığını anlamak ve profesyonel firmware güncelleme standartlarını uygulamak için Ömer Faruk Acar tarafından geliştirilmiştir.*
+*This project was developed by Ömer Faruk Acar to understand the low-level working logic of embedded systems and apply professional firmware update standards.*
