@@ -40,5 +40,4 @@ The project works by dividing the microcontroller's Flash memory into two main s
 * Integrate an advanced CRC-32 check to verify the integrity of the software.
 * Add USB (DFU Class) support to the communication interface.
 
----
-*This project was developed by Ömer Faruk Acar to understand the low-level working logic of embedded systems and apply professional firmware update standards.*
+
